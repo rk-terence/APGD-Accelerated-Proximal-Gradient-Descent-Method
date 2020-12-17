@@ -1,40 +1,42 @@
 """
 APGD: Accelerated Proximal Gradient Descent.
 Author: rkterence@zju.edu.cn
+Written with python 3.7.2
 """
 
-from numpy.linalg import norm
+from numpy.linalg import norm  # the default input is 2-norm or frobenius norm.
 import numpy as np
-
-
-def norm2(X):
-    """
-    根据X的形状计算frobenius范数或者二范数。
-    """
-    if len(X.shape) == 1:
-        return norm(X, 2)
-    elif len(X.shape) == 2:
-        return norm(X, 'fro')
-    else:
-        print("Error input")
-        raise
 
 
 def mixed_norm(X, p, q):
     """
     Calculate the L(p, q) norm of X.
+    The input should be 2darray.
     """
-    return norm([norm(row, p) for row in X], q)
+    if not isinstance(X, np.ndarray):
+        raise RuntimeError("Wrong input")
+    if len(X.shape) == 1:
+        return norm(norm(X, ord=p), ord=q)
+    elif len(X.shape) == 2:
+        return norm(norm(X, axis=1, ord=p), ord=q)
+    else:
+        raise RuntimeError("Unsupported dimension of X.")
 
 
 def prox(constrain_type, constrain_lambda, x):
     def prox_l1(x, l):
         return np.sign(x) * np.maximum(np.abs(x) - l, 0)
+    def prox_l2_1(x, l):
+        return np.maximum(1-l/norm(x, axis=1), 0).reshape(-1, 1) * x
 
     if constrain_type is None:
         return x
-    elif constrain_type == "l1": # L1 norm
+    elif constrain_type == "l1":  # L_1 norm
         return prox_l1(x, constrain_lambda)
+    elif constrain_type == 'l21':  # L_{2,1} norm
+        return prox_l2_1(x, constrain_lambda)
+    else:
+        raise RuntimeError("Unsupported constrain type")
 
 
 def g(constrain_type, x):
@@ -45,20 +47,22 @@ def g(constrain_type, x):
         return 0
     elif constrain_type == "l1": # L1 norm
         return np.sum(np.abs(x))
+    elif constrain_type == 'l21':  # L_{2,1} norm
+        return mixed_norm(x, 2, 1)
 
 
 def line_search(f, constrain_type, constrain_lambda, grad, x, step, beta=0.5):
     while True:
         z = prox(constrain_type, constrain_lambda * step, x - step * grad(x))
-        cost_hat = f(x) + np.dot(z - x, grad(x)) + 1/(2*step)*norm2(z - x) + constrain_lambda * g(constrain_type, z)
+        cost_hat = f(x) + np.dot(z.ravel() - x.ravel(), grad(x).ravel()) + 1/(2*step)*norm(z - x) + constrain_lambda * g(constrain_type, z)
         if cost_hat >= f(z) + constrain_lambda * g(constrain_type, z):
             break
         step *= beta
     return step, z
 
 
-def accelerated_proximal_gradient(f, constrain_type, constrain_lambda, grad, x_init, lipschitz=None, step=1,
-                                  loop_tol=1e-6, max_iter=500):
+def accelerated_proximal_gradient(f, constrain_type, constrain_lambda, grad, x_init, 
+                                  lipschitz=None, step=1, loop_tol=1e-6, max_iter=500):
     """
     Accelerated Proximal Gradient Method.
     :param f: cost function of f(x) in min{ f(x) + g(x) }
@@ -87,7 +91,7 @@ def accelerated_proximal_gradient(f, constrain_type, constrain_lambda, grad, x_i
         x_old = x
         x = z  # update x by z
         print("Current x: ", x)
-        if norm2(x - x_old) <= loop_tol:
+        if norm(x - x_old) <= loop_tol:
             break
         if iter >= max_iter:
             print("max_iter exceeded...")
@@ -103,18 +107,25 @@ $$
 cost = 10x_1^2 + 50x_2^2 + 0.1 \cdot \sum_{i=1}^2 |x|
 $$ 
 """
-
-
-def test_f(x):
-    return 10*int(x[0])**2 + 50*int(x[1])**2
-
-
-def test_grad(x):
-    return np.array([20*x[0], 100*x[1]])
-
-
 if __name__ == "__main__":
-    x_init = np.array([50, 75], dtype='int64')  # int64 to avoid data overflow in numpy
-    x = accelerated_proximal_gradient(f=test_f, constrain_type='l1', constrain_lambda=0.1, grad=test_grad,
-                                      x_init=x_init, lipschitz=None, step=10, loop_tol=1e-6, max_iter=50000)
-    print(x)
+    def test_f1(x):
+        return x[0]**2 + 2*x[1]**2 + 3*x[2]**2
+    def test_grad1(x):
+        return np.array([2*x[0], 4*x[1], 6*x[2]])
+    def test_f2(x):
+        return np.sum([1, 4, 1, 4] @ x.ravel()**2)
+    def test_grad2(x):
+        return np.array([[2, 8], [2, 8]]) * x
+    def test_f3(x):
+        return -200 * np.exp(-0.2 * norm(x))
+    def test_grad3(x):
+        return 40 * np.exp(-0.2 * norm(x)) / norm(x) * x
+    # x_init = np.array([50, 2, 3])
+    # x_init = np.array([[1, 100], [20, -43]])
+    x_init = np.array([1, 100])
+    x = accelerated_proximal_gradient(f=test_f3, constrain_type='l1', 
+                                      constrain_lambda=0.1, grad=test_grad3,
+                                      x_init=x_init, lipschitz=None, 
+                                      step=10, loop_tol=1e-6, max_iter=200000)
+    # print(x)
+    # print(mixed_norm(np.array(1), 1, 1))
