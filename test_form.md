@@ -40,8 +40,9 @@ $$
 \end{aligned}
 $$
 
-# Benchmark function: Ackey N. 2 Function
+# Ackey N. 2 Function with L1 constraint
 
+The *Ackey N. 2 Function* has the form
 $$
 f(x, y) = -200e^{-0.2\sqrt{x^2 + y^2}}
 $$
@@ -53,3 +54,18 @@ $$
 \matrix{x & y}
 \right]^\top
 $$
+
+In this testing,
+$$
+F(\boldsymbol{x})=f(x, y)+0.1|x|+0.1|y|
+$$
+By using APGD, if Lipschitz constant $L$ is not given, simple line search here cannot guarantee convergence. **In this case $f$ is Lipschitz continuous**, as shown in the analysis below.
+$$
+\|\nabla f(x,y)\|=40e^{-0.2\sqrt{x^2+y^2}}
+\le 40
+$$
+Therefore we can conclude that 
+$$
+\|f(x_1, y_1)-f(x_2,y_2)\| \le 40\sqrt{(x_1-x_2)^2+(y_1-y_2)^2}
+$$
+And the minimum $L$ should be 40. In practice, APGD converges rather fast for this problem.

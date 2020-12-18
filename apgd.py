@@ -6,6 +6,7 @@ Written with python 3.7.2
 
 from numpy.linalg import norm  # the default input is 2-norm or frobenius norm.
 import numpy as np
+import warnings
 
 
 def mixed_norm(X, p, q):
@@ -61,8 +62,9 @@ def line_search(f, constrain_type, constrain_lambda, grad, x, step, beta=0.5):
     return step, z
 
 
-def accelerated_proximal_gradient(f, constrain_type, constrain_lambda, grad, x_init, 
-                                  lipschitz=None, step=1, loop_tol=1e-6, max_iter=500):
+def apg(f, constrain_type, constrain_lambda, grad, x_init=None, 
+                                  lipschitz=None, step=1, loop_tol=1e-6, max_iter=500,
+                                  verbose=False):
     """
     Accelerated Proximal Gradient Method.
     :param f: cost function of f(x) in min{ f(x) + g(x) }
@@ -90,23 +92,20 @@ def accelerated_proximal_gradient(f, constrain_type, constrain_lambda, grad, x_i
 
         x_old = x
         x = z  # update x by z
-        print("Current x: ", x)
         if norm(x - x_old) <= loop_tol:
             break
         if iter >= max_iter:
-            print("max_iter exceeded...")
+            warnings.warn("max_iter exceeded, if the Lipschitz constant is not given, "
+                          "consider set it")
             break
         iter += 1
-    print("Iter =", iter)
+        if verbose:
+            print('Iter: %d\tCurrent x: ' % (iter+1), end='')
+            print(x)
     return x
 
 
-"""
-Below is the testing part:
-$$
-cost = 10x_1^2 + 50x_2^2 + 0.1 \cdot \sum_{i=1}^2 |x|
-$$ 
-"""
+# Below is the testing part
 if __name__ == "__main__":
     def test_f1(x):
         return x[0]**2 + 2*x[1]**2 + 3*x[2]**2
@@ -122,10 +121,9 @@ if __name__ == "__main__":
         return 40 * np.exp(-0.2 * norm(x)) / norm(x) * x
     # x_init = np.array([50, 2, 3])
     # x_init = np.array([[1, 100], [20, -43]])
-    x_init = np.array([1, 100])
-    x = accelerated_proximal_gradient(f=test_f3, constrain_type='l1', 
-                                      constrain_lambda=0.1, grad=test_grad3,
-                                      x_init=x_init, lipschitz=None, 
-                                      step=10, loop_tol=1e-6, max_iter=200000)
-    # print(x)
-    # print(mixed_norm(np.array(1), 1, 1))
+    x_init = np.array([-10, 20])
+    x = apg(f=test_f3, constrain_type=None, 
+            constrain_lambda=0.1, grad=test_grad3,
+            x_init=x_init, lipschitz=None, 
+            step=10, loop_tol=1e-6, max_iter=2000,
+            verbose=True)
